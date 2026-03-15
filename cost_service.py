@@ -386,10 +386,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                  "duration_s": 300, "avg_power_w": 280}
 
 <code>GET    /jobs</code>          Live power + cost for all active jobs
-<code>GET    /status</code>        Full system state (power, GPUs, price, jobs)
-<code>GET    /history</code>       Power samples (default: ?minutes=60)
+<code>GET    /status</code>        Full system state (power, util%, temp, price, jobs)
+<code>GET    /history</code>       Power samples with util% and temp (default: ?minutes=60)
+<code>POST   /refresh-prices</code> Trigger EPEX price refresh
 <code>GET    /openapi.json</code>  OpenAPI schema
 <code>GET    /docs</code>          Swagger UI
+
+<strong>Status response includes:</strong>
+  shelly_total_w, gpu_powers_w, gpu_utilizations_pct,
+  gpu_temperatures_c, system_base_w, price_eur_per_kwh, active_jobs
 
 <strong>Attribution model:</strong>
   System baseline (idle power) is excluded.

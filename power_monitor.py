@@ -61,8 +61,4 @@ class PowerMonitor:
             if self.system_base is None:
                 self.system_base = avg
             else:
-                # Track minimum observed average, not just current average
                 self.system_base = min(self.system_base, avg)
-
-        if self.system_base is None:
-            self.system_base = 0.0

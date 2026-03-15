@@ -127,7 +127,7 @@ def sampling_loop():
 
             monitor.update_baseline(shelly_w, gpu_utils)
 
-            system_base = monitor.system_base
+            system_base = monitor.system_base or 0
             total_gpu_w = sum(gpu_powers.values())
             overhead = max(0, shelly_w - system_base - total_gpu_w)
 

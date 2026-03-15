@@ -78,34 +78,9 @@ app = FastAPI(
 )
 
 
-@app.get("/", response_class=PlainTextResponse)
+@app.get("/", response_class=HTMLResponse)
 def root():
-    return """GPU Cost Tracker API
-====================
-
-Track the real energy cost (kWh + EUR) of GPU jobs.
-
-Endpoints:
-  POST   /job/start      - Start tracking: {"gpu": 0, "client": "myapp", "label": "run_42"}
-                          Returns: {"job_id": "abc123"}
-
-  GET    /job/{job_id}  - Get current cost of a running job (without stopping it)
-  DELETE /job/{job_id}  - Stop tracking and return final cost
-                          Returns: {"energy_kwh": 0.12, "cost_eur": 0.03, "duration_s": 300, "avg_power_w": 280}
-
-  GET  /jobs        - Live power + cost for all active jobs (for UI polling)
-  GET  /status      - Full system state: Shelly power, GPU power/util, baseline, EPEX price, active jobs
-  GET  /history     - Historic power samples (default: last 60 min, ?minutes=N)
-  GET  /chart       - Live-updating power usage chart
-  GET  /openapi.json - OpenAPI schema (machine-readable)
-  GET  /docs        - Interactive API docs (Swagger UI)
-
-Attribution model:
-  - System baseline (idle power) is excluded — you only pay for what the job causes
-  - GPU power is directly attributed per GPU via NVML
-  - System overhead (CPU, fans) is split proportionally by GPU power draw
-  - Cost = energy * (EPEX spot + 0.125 taxes + 0.02 purchasing) EUR/kWh
-"""
+    return DASHBOARD_HTML
 monitor = PowerMonitor()
 price_tracker = EPEXPriceTracker()
 active_jobs: dict[str, ActiveJob] = {}
@@ -327,25 +302,40 @@ def get_history(minutes: int = 60):
 
 @app.get("/chart", response_class=HTMLResponse)
 def chart():
-    return CHART_HTML
+    return DASHBOARD_HTML
 
 
-CHART_HTML = """<!DOCTYPE html>
+DASHBOARD_HTML = """<!DOCTYPE html>
 <html><head>
 <title>GPU Cost Tracker</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
 <style>
-  body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 20px; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; background: #111; color: #eee; margin: 0; padding: 20px; max-width: 1200px; margin: 0 auto; }
   h1 { margin: 0 0 10px; font-size: 1.4em; }
-  .stats { display: flex; gap: 20px; margin-bottom: 15px; font-size: 0.95em; }
-  .stat { background: #222; padding: 8px 14px; border-radius: 6px; }
+  .stats { display: flex; gap: 12px; margin-bottom: 15px; font-size: 0.95em; flex-wrap: wrap; }
+  .stat { background: #222; padding: 8px 14px; border-radius: 6px; min-width: 90px; }
   .stat .val { font-size: 1.3em; font-weight: bold; }
   .stat .label { color: #888; font-size: 0.85em; }
   canvas { background: #1a1a1a; border-radius: 8px; }
+
+  h2 { font-size: 1.1em; margin: 20px 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+  th { text-align: left; color: #888; font-weight: 500; padding: 6px 10px; border-bottom: 1px solid #333; }
+  td { padding: 6px 10px; border-bottom: 1px solid #222; }
+  .no-jobs { color: #666; font-style: italic; padding: 10px; }
+
+  details { margin-top: 20px; background: #1a1a1a; border-radius: 8px; }
+  summary { cursor: pointer; padding: 12px 16px; color: #888; font-size: 0.95em; user-select: none; }
+  summary:hover { color: #ccc; }
+  .api-docs { padding: 0 16px 16px; }
+  .api-docs pre { background: #222; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 0.85em; line-height: 1.5; }
+  .api-docs code { color: #f59e0b; }
 </style>
 </head><body>
 <h1>GPU Cost Tracker</h1>
+
 <div class="stats">
   <div class="stat"><div class="val" id="total-w">--</div><div class="label">Total W</div></div>
   <div class="stat"><div class="val" id="gpu0-w">--</div><div class="label">GPU 0</div></div>
@@ -353,7 +343,40 @@ CHART_HTML = """<!DOCTYPE html>
   <div class="stat"><div class="val" id="base-w">--</div><div class="label">Baseline</div></div>
   <div class="stat"><div class="val" id="price">--</div><div class="label">EUR/kWh</div></div>
 </div>
+
 <canvas id="chart" height="100"></canvas>
+
+<h2>Active Jobs</h2>
+<div id="jobs-container"><div class="no-jobs">No active jobs</div></div>
+
+<details>
+  <summary>API Documentation</summary>
+  <div class="api-docs">
+  <pre>
+<code>POST   /job/start</code>      Start tracking a job
+       Body: {"gpu": 0, "client": "myapp", "label": "run_42"}
+       Returns: {"job_id": "abc123"}
+
+<code>GET    /job/{job_id}</code>  Get current cost of a running job
+<code>DELETE /job/{job_id}</code>  Stop tracking, return final cost
+       Returns: {"energy_kwh": 0.12, "cost_eur": 0.03,
+                 "duration_s": 300, "avg_power_w": 280}
+
+<code>GET    /jobs</code>          Live power + cost for all active jobs
+<code>GET    /status</code>        Full system state (power, GPUs, price, jobs)
+<code>GET    /history</code>       Power samples (default: ?minutes=60)
+<code>GET    /openapi.json</code>  OpenAPI schema
+<code>GET    /docs</code>          Swagger UI
+
+<strong>Attribution model:</strong>
+  System baseline (idle power) is excluded.
+  GPU power attributed directly per GPU via NVML.
+  Overhead (CPU, fans) split proportionally by GPU power.
+  Cost = energy * (EPEX spot + 0.125 taxes + 0.02 purchasing)
+  </pre>
+  </div>
+</details>
+
 <script>
 const ctx = document.getElementById('chart').getContext('2d');
 const chart = new Chart(ctx, {
@@ -378,14 +401,22 @@ const chart = new Chart(ctx, {
   }
 });
 
+function formatDuration(s) {
+  if (s < 60) return s.toFixed(0) + 's';
+  if (s < 3600) return (s/60).toFixed(1) + 'm';
+  return (s/3600).toFixed(1) + 'h';
+}
+
 async function update() {
   try {
-    const [histRes, statusRes] = await Promise.all([
+    const [histRes, statusRes, jobsRes] = await Promise.all([
       fetch('/history?minutes=60'),
-      fetch('/status')
+      fetch('/status'),
+      fetch('/jobs'),
     ]);
     const hist = await histRes.json();
     const status = await statusRes.json();
+    const jobs = await jobsRes.json();
 
     chart.data.datasets[0].data = hist.map(s => ({ x: s.t * 1000, y: s.shelly }));
     chart.data.datasets[1].data = hist.map(s => ({ x: s.t * 1000, y: s.gpu['0'] || 0 }));
@@ -398,6 +429,24 @@ async function update() {
     document.getElementById('gpu1-w').textContent = (status.gpu_powers_w['1'] || 0).toFixed(0) + 'W';
     document.getElementById('base-w').textContent = (status.system_base_w || 0).toFixed(0) + 'W';
     document.getElementById('price').textContent = status.price_eur_per_kwh.toFixed(3);
+
+    const container = document.getElementById('jobs-container');
+    if (jobs.length === 0) {
+      container.innerHTML = '<div class="no-jobs">No active jobs</div>';
+    } else {
+      container.innerHTML = `<table>
+        <tr><th>GPU</th><th>Client</th><th>Label</th><th>Power</th><th>Duration</th><th>Energy</th><th>Cost</th></tr>
+        ${jobs.map(j => `<tr>
+          <td>${j.gpu}</td>
+          <td>${j.client || '-'}</td>
+          <td>${j.label || '-'}</td>
+          <td>${j.current_w.toFixed(0)}W</td>
+          <td>${formatDuration(j.duration_s)}</td>
+          <td>${j.energy_kwh.toFixed(4)} kWh</td>
+          <td>&euro;${j.cost_eur.toFixed(4)}</td>
+        </tr>`).join('')}
+      </table>`;
+    }
   } catch(e) { console.error(e); }
 }
 

@@ -288,16 +288,21 @@ def get_history(minutes: int = 60):
     samples = [s for s in history if s.timestamp >= cutoff]
     step = max(1, len(samples) // 360)
     sampled = samples[::step]
-    return [
-        {
+    result = []
+    for s in sampled:
+        base = round(s.system_base_w or 0, 1)
+        gpu0 = round(s.gpu_powers_w.get(0, 0), 1)
+        gpu1 = round(s.gpu_powers_w.get(1, 0), 1)
+        rest = round(max(0, s.shelly_w - base - gpu0 - gpu1), 1)
+        result.append({
             "t": s.timestamp,
             "shelly": round(s.shelly_w, 1),
-            "gpu": {str(k): round(v, 1) for k, v in s.gpu_powers_w.items()},
-            "base": round(s.system_base_w, 1),
-            "price": round(s.price_eur_per_kwh, 4),
-        }
-        for s in sampled
-    ]
+            "base": base,
+            "gpu0": gpu0,
+            "gpu1": gpu1,
+            "rest": rest,
+        })
+    return result
 
 
 @app.get("/chart", response_class=HTMLResponse)
@@ -383,10 +388,10 @@ const chart = new Chart(ctx, {
   type: 'line',
   data: {
     datasets: [
-      { label: 'Total (Shelly)', borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, pointRadius: 0, borderWidth: 1.5, data: [] },
-      { label: 'GPU 0', borderColor: '#3b82f6', pointRadius: 0, borderWidth: 1.5, data: [] },
-      { label: 'GPU 1', borderColor: '#10b981', pointRadius: 0, borderWidth: 1.5, data: [] },
-      { label: 'Baseline', borderColor: '#666', borderDash: [5,5], pointRadius: 0, borderWidth: 1, data: [] },
+      { label: 'Baseline', borderColor: '#555', backgroundColor: 'rgba(85,85,85,0.6)', fill: true, pointRadius: 0, borderWidth: 0.5, data: [] },
+      { label: 'GPU 0', borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.6)', fill: true, pointRadius: 0, borderWidth: 0.5, data: [] },
+      { label: 'GPU 1', borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.6)', fill: true, pointRadius: 0, borderWidth: 0.5, data: [] },
+      { label: 'Other', borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.6)', fill: true, pointRadius: 0, borderWidth: 0.5, data: [] },
     ]
   },
   options: {
@@ -395,7 +400,7 @@ const chart = new Chart(ctx, {
     interaction: { intersect: false, mode: 'index' },
     scales: {
       x: { type: 'time', time: { tooltipFormat: 'HH:mm:ss' }, ticks: { color: '#888' }, grid: { color: '#333' } },
-      y: { title: { display: true, text: 'Watts', color: '#888' }, ticks: { color: '#888' }, grid: { color: '#333' }, min: 0 }
+      y: { stacked: true, title: { display: true, text: 'Watts', color: '#888' }, ticks: { color: '#888' }, grid: { color: '#333' }, min: 0 }
     },
     plugins: { legend: { labels: { color: '#ccc' } } }
   }
@@ -418,10 +423,10 @@ async function update() {
     const status = await statusRes.json();
     const jobs = await jobsRes.json();
 
-    chart.data.datasets[0].data = hist.map(s => ({ x: s.t * 1000, y: s.shelly }));
-    chart.data.datasets[1].data = hist.map(s => ({ x: s.t * 1000, y: s.gpu['0'] || 0 }));
-    chart.data.datasets[2].data = hist.map(s => ({ x: s.t * 1000, y: s.gpu['1'] || 0 }));
-    chart.data.datasets[3].data = hist.map(s => ({ x: s.t * 1000, y: s.base }));
+    chart.data.datasets[0].data = hist.map(s => ({ x: s.t * 1000, y: s.base }));
+    chart.data.datasets[1].data = hist.map(s => ({ x: s.t * 1000, y: s.gpu0 }));
+    chart.data.datasets[2].data = hist.map(s => ({ x: s.t * 1000, y: s.gpu1 }));
+    chart.data.datasets[3].data = hist.map(s => ({ x: s.t * 1000, y: s.rest }));
     chart.update();
 
     document.getElementById('total-w').textContent = status.shelly_total_w.toFixed(0) + 'W';

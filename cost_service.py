@@ -236,6 +236,7 @@ def status():
     gpu_powers = monitor.read_gpu_powers()
     gpu_utils = monitor.read_gpu_utilizations()
     gpu_temps = monitor.read_gpu_temperatures()
+    gpu_vram = monitor.read_gpu_vram()
     price = price_tracker.current_price_eur_per_kwh()
 
     with lock:
@@ -260,6 +261,7 @@ def status():
         "gpu_powers_w": gpu_powers,
         "gpu_utilizations_pct": gpu_utils,
         "gpu_temperatures_c": gpu_temps,
+        "gpu_vram_gb": gpu_vram,
         "system_base_w": monitor.system_base,
         "price_eur_per_kwh": price,
         "active_jobs": jobs,

@@ -50,6 +50,17 @@ class PowerMonitor:
             utils[i] = util.gpu
         return utils
 
+    def read_gpu_vram(self) -> dict[int, dict]:
+        vram = {}
+        for i in range(self.gpu_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            vram[i] = {
+                "used_gb": round(mem.used / (1024**3), 1),
+                "total_gb": round(mem.total / (1024**3), 0),
+            }
+        return vram
+
     def read_gpu_temperatures(self) -> dict[int, int]:
         temps = {}
         for i in range(self.gpu_count):

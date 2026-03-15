@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from epex_prices import EPEXPriceTracker
@@ -62,7 +63,38 @@ class JobStopRequest(BaseModel):
     job_id: str
 
 
-app = FastAPI(title="GPU Cost Tracker")
+app = FastAPI(
+    title="GPU Cost Tracker",
+    description="Tracks real energy cost of GPU jobs using Shelly power monitoring, NVML, and EPEX spot prices.",
+    version="0.1.0",
+)
+
+
+@app.get("/", response_class=PlainTextResponse)
+def root():
+    return """GPU Cost Tracker API
+====================
+
+Track the real energy cost (kWh + EUR) of GPU jobs.
+
+Endpoints:
+  POST /job/start   - Start tracking a job: {"gpu": 0, "client": "myapp", "label": "run_42"}
+                      Returns: {"job_id": "abc123"}
+
+  POST /job/stop    - Stop tracking: {"job_id": "abc123"}
+                      Returns: {"energy_kwh": 0.12, "cost_eur": 0.03, "duration_s": 300, "avg_power_w": 280}
+
+  GET  /jobs        - Live power + cost for all active jobs (for UI polling)
+  GET  /status      - Full system state: Shelly power, GPU power/util, baseline, EPEX price, active jobs
+  GET  /openapi.json - OpenAPI schema (machine-readable)
+  GET  /docs        - Interactive API docs (Swagger UI)
+
+Attribution model:
+  - System baseline (idle power) is excluded — you only pay for what the job causes
+  - GPU power is directly attributed per GPU via NVML
+  - System overhead (CPU, fans) is split proportionally by GPU power draw
+  - Cost = energy * (EPEX spot + 0.125 taxes + 0.02 purchasing) EUR/kWh
+"""
 monitor = PowerMonitor()
 price_tracker = EPEXPriceTracker()
 active_jobs: dict[str, ActiveJob] = {}

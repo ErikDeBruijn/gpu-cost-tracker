@@ -194,7 +194,12 @@ def status():
             jid: {
                 "gpu": j.gpu_index,
                 "pid": j.pid,
+                "client": j.client,
+                "label": j.label,
                 "started_at": datetime.fromtimestamp(j.started_at, tz=timezone.utc).isoformat(),
+                "current_w": j.samples[-1].total_attributed_w if j.samples else 0,
+                "gpu_w": j.samples[-1].gpu_power_w if j.samples else 0,
+                "overhead_w": j.samples[-1].overhead_share_w if j.samples else 0,
                 "samples": len(j.samples),
                 "running": compute_job_costs(j),
             }
@@ -209,6 +214,25 @@ def status():
         "price_eur_per_kwh": price,
         "active_jobs": jobs,
     }
+
+
+@app.get("/jobs")
+def jobs_live():
+    """Lightweight endpoint for UI polling — just active job power and cost."""
+    with lock:
+        return [
+            {
+                "job_id": jid,
+                "gpu": j.gpu_index,
+                "client": j.client,
+                "label": j.label,
+                "current_w": j.samples[-1].total_attributed_w if j.samples else 0,
+                "energy_kwh": compute_job_costs(j)["energy_kwh"],
+                "cost_eur": compute_job_costs(j)["cost_eur"],
+                "duration_s": time.time() - j.started_at,
+            }
+            for jid, j in active_jobs.items()
+        ]
 
 
 if __name__ == "__main__":

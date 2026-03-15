@@ -32,12 +32,15 @@ class EPEXPriceTracker:
 
     def _refresh_loop(self):
         while True:
-            # Refresh every hour
-            time.sleep(3600)
+            time.sleep(3 * 3600)  # Refresh every 3 hours
             try:
                 self._fetch_prices()
             except Exception:
                 logger.exception("ENTSO-E price refresh failed")
+
+    def refresh(self):
+        """Public method to trigger a price refresh."""
+        self._fetch_prices()
 
     def _fetch_prices(self):
         now = datetime.now(timezone.utc)

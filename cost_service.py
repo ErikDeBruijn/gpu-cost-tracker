@@ -305,6 +305,13 @@ def get_history(minutes: int = 60):
     return result
 
 
+@app.post("/refresh-prices")
+def refresh_prices():
+    """Trigger an EPEX price refresh. Called by cron at 13:15 daily."""
+    price_tracker.refresh()
+    return {"status": "ok", "price_eur_per_kwh": price_tracker.current_price_eur_per_kwh()}
+
+
 @app.get("/chart", response_class=HTMLResponse)
 def chart():
     return DASHBOARD_HTML
@@ -339,7 +346,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .api-docs code { color: #f59e0b; }
 </style>
 </head><body>
-<h1>GPU Cost Tracker</h1>
+<h1>GPU Cost Tracker <a href="https://github.com/ErikDeBruijn/gpu-cost-tracker" style="font-size:0.6em;color:#888;text-decoration:none;margin-left:8px">GitHub</a></h1>
 
 <div class="stats">
   <div class="stat"><div class="val" id="total-w">--</div><div class="label">Total W</div></div>

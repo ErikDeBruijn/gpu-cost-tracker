@@ -1,0 +1,24 @@
+[Unit]
+Description=GPU Cost Tracking Service
+After=network.target
+
+[Service]
+Type=simple
+User=cost-tracker
+Group=cost-tracker
+WorkingDirectory=/opt/cost-function
+ExecStart=/opt/cost-function/venv/bin/uvicorn cost_service:app --host 0.0.0.0 --port 8377
+EnvironmentFile=/etc/default/cost-tracker
+Restart=on-failure
+RestartSec=10
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadOnlyPaths=/
+ReadWritePaths=/opt/cost-function
+
+[Install]
+WantedBy=multi-user.target

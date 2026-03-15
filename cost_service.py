@@ -70,9 +70,6 @@ class JobStartRequest(BaseModel):
     label: str | None = None   # e.g. "train_run_42", "llama3-inference"
 
 
-class JobStopRequest(BaseModel):
-    job_id: str
-
 
 app = FastAPI(
     title="GPU Cost Tracker",
@@ -89,11 +86,12 @@ def root():
 Track the real energy cost (kWh + EUR) of GPU jobs.
 
 Endpoints:
-  POST /job/start   - Start tracking a job: {"gpu": 0, "client": "myapp", "label": "run_42"}
-                      Returns: {"job_id": "abc123"}
+  POST   /job/start      - Start tracking: {"gpu": 0, "client": "myapp", "label": "run_42"}
+                          Returns: {"job_id": "abc123"}
 
-  POST /job/stop    - Stop tracking: {"job_id": "abc123"}
-                      Returns: {"energy_kwh": 0.12, "cost_eur": 0.03, "duration_s": 300, "avg_power_w": 280}
+  GET    /job/{job_id}  - Get current cost of a running job (without stopping it)
+  DELETE /job/{job_id}  - Stop tracking and return final cost
+                          Returns: {"energy_kwh": 0.12, "cost_eur": 0.03, "duration_s": 300, "avg_power_w": 280}
 
   GET  /jobs        - Live power + cost for all active jobs (for UI polling)
   GET  /status      - Full system state: Shelly power, GPU power/util, baseline, EPEX price, active jobs
@@ -224,16 +222,33 @@ def job_start(req: JobStartRequest):
     return {"job_id": job_id}
 
 
-@app.post("/job/stop")
-def job_stop(req: JobStopRequest):
+@app.get("/job/{job_id}")
+def job_get(job_id: str):
+    """Get current cost of a running job without stopping it."""
     with lock:
-        job = active_jobs.pop(req.job_id, None)
+        job = active_jobs.get(job_id)
 
     if not job:
-        raise HTTPException(404, f"Job {req.job_id} not found")
+        raise HTTPException(404, f"Job {job_id} not found")
 
     result = compute_job_costs(job)
-    logger.info("Job %s stopped: %s", req.job_id, result)
+    result["gpu"] = job.gpu_index
+    result["client"] = job.client
+    result["label"] = job.label
+    return result
+
+
+@app.delete("/job/{job_id}")
+def job_stop(job_id: str):
+    """Stop tracking a job and return final cost."""
+    with lock:
+        job = active_jobs.pop(job_id, None)
+
+    if not job:
+        raise HTTPException(404, f"Job {job_id} not found")
+
+    result = compute_job_costs(job)
+    logger.info("Job %s stopped: %s", job_id, result)
     return result
 
 

@@ -39,6 +39,7 @@ class SystemSample:
     shelly_w: float
     gpu_powers_w: dict[int, float]
     gpu_utils_pct: dict[int, int]
+    gpu_temps_c: dict[int, int]
     system_base_w: float
     price_eur_per_kwh: float
 
@@ -124,6 +125,7 @@ def sampling_loop():
             shelly_w = monitor.read_shelly()
             gpu_powers = monitor.read_gpu_powers()
             gpu_utils = monitor.read_gpu_utilizations()
+            gpu_temps = monitor.read_gpu_temperatures()
 
             monitor.update_baseline(shelly_w, gpu_utils)
 
@@ -138,6 +140,7 @@ def sampling_loop():
                 shelly_w=shelly_w,
                 gpu_powers_w=dict(gpu_powers),
                 gpu_utils_pct=dict(gpu_utils),
+                gpu_temps_c=dict(gpu_temps),
                 system_base_w=system_base,
                 price_eur_per_kwh=price,
             ))
@@ -232,6 +235,7 @@ def status():
     shelly_w = monitor.read_shelly()
     gpu_powers = monitor.read_gpu_powers()
     gpu_utils = monitor.read_gpu_utilizations()
+    gpu_temps = monitor.read_gpu_temperatures()
     price = price_tracker.current_price_eur_per_kwh()
 
     with lock:
@@ -255,6 +259,7 @@ def status():
         "shelly_total_w": shelly_w,
         "gpu_powers_w": gpu_powers,
         "gpu_utilizations_pct": gpu_utils,
+        "gpu_temperatures_c": gpu_temps,
         "system_base_w": monitor.system_base,
         "price_eur_per_kwh": price,
         "active_jobs": jobs,
@@ -301,6 +306,10 @@ def get_history(minutes: int = 60):
             "gpu0": gpu0,
             "gpu1": gpu1,
             "rest": rest,
+            "util0": s.gpu_utils_pct.get(0, 0),
+            "util1": s.gpu_utils_pct.get(1, 0),
+            "temp0": s.gpu_temps_c.get(0, 0),
+            "temp1": s.gpu_temps_c.get(1, 0),
         })
     return result
 
@@ -351,7 +360,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <div class="stats">
   <div class="stat"><div class="val" id="total-w">--</div><div class="label">Total W</div></div>
   <div class="stat"><div class="val" id="gpu0-w">--</div><div class="label">GPU 0</div></div>
+  <div class="stat"><div class="val" id="gpu0-info">--</div><div class="label">Util / Temp</div></div>
   <div class="stat"><div class="val" id="gpu1-w">--</div><div class="label">GPU 1</div></div>
+  <div class="stat"><div class="val" id="gpu1-info">--</div><div class="label">Util / Temp</div></div>
   <div class="stat"><div class="val" id="base-w">--</div><div class="label">Baseline</div></div>
   <div class="stat"><div class="val" id="price">--</div><div class="label">EUR/kWh</div></div>
 </div>
@@ -438,7 +449,9 @@ async function update() {
 
     document.getElementById('total-w').textContent = status.shelly_total_w.toFixed(0) + 'W';
     document.getElementById('gpu0-w').textContent = (status.gpu_powers_w['0'] || 0).toFixed(0) + 'W';
+    document.getElementById('gpu0-info').textContent = (status.gpu_utilizations_pct['0'] || 0) + '% / ' + (status.gpu_temperatures_c['0'] || 0) + '\u00B0C';
     document.getElementById('gpu1-w').textContent = (status.gpu_powers_w['1'] || 0).toFixed(0) + 'W';
+    document.getElementById('gpu1-info').textContent = (status.gpu_utilizations_pct['1'] || 0) + '% / ' + (status.gpu_temperatures_c['1'] || 0) + '\u00B0C';
     document.getElementById('base-w').textContent = (status.system_base_w || 0).toFixed(0) + 'W';
     document.getElementById('price').textContent = status.price_eur_per_kwh.toFixed(3);
 

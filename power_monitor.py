@@ -50,6 +50,13 @@ class PowerMonitor:
             utils[i] = util.gpu
         return utils
 
+    def read_gpu_temperatures(self) -> dict[int, int]:
+        temps = {}
+        for i in range(self.gpu_count):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            temps[i] = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+        return temps
+
     def update_baseline(self, shelly_w: float, gpu_utils: dict[int, int]):
         all_idle = all(u < GPU_IDLE_THRESHOLD for u in gpu_utils.values())
 
